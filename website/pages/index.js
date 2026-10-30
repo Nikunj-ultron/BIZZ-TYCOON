@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { StatusIndicator } from '../components/StatusIndicator';
 import { Display } from '../components/Display';
 import { SevenSegment } from '../components/SevenSegment';
+import { HistoryGraph } from '../components/HistoryGraph';
+import { Controls } from '../components/Controls';
 
 export default function Home() {
   const [data, setData] = useState({
@@ -13,6 +16,7 @@ export default function Home() {
     battery: 95,
     status: 'SAFE'
   });
+  const [history, setHistory] = useState([]);
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
@@ -26,6 +30,7 @@ export default function Home() {
       try {
         const json = JSON.parse(event.data);
         setData(json);
+        setHistory(prev => [...prev.slice(-30), { timestamp: new Date().toLocaleTimeString(), ppm: json.ppm }]);
       } catch (e) {
         console.error('Parse error', e);
       }
@@ -43,9 +48,14 @@ export default function Home() {
           </h1>
           <p className="text-slate-400 text-sm">IoT Gas Leak & Fire Detection System | Bizz Tycoons</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <span className={`w-3 h-3 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-          <span className="text-sm font-medium">{connected ? 'Connected to Bridge' : 'Disconnected'}</span>
+        <div className="flex items-center space-x-6">
+          <Link href="/about" className="text-sm font-medium text-slate-300 hover:text-white transition">
+            About Project
+          </Link>
+          <div className="flex items-center space-x-3">
+            <span className={`w-3 h-3 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+            <span className="text-sm font-medium">{connected ? 'Connected to Bridge' : 'Disconnected'}</span>
+          </div>
         </div>
       </header>
 
@@ -72,6 +82,16 @@ export default function Home() {
               {data.touch ? 'Touched / Silenced' : 'Normal'}
             </span>
           </div>
+        </div>
+
+        <div className="md:col-span-2">
+          <HistoryGraph history={history} />
+        </div>
+        <div className="md:col-span-1">
+          <Controls
+            onTestAlarm={() => alert('Test alarm triggered!')}
+            onReset={() => alert('System reset sent!')}
+          />
         </div>
       </main>
     </div>
