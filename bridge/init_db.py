@@ -1,12 +1,15 @@
-import sqlite3
+"""Database initialization module for GASTECT."""
 import os
+import sqlite3
+
 
 def init_db():
+    """Initialize the SQLite history database and create readings table."""
     db_path = os.path.join(os.path.dirname(__file__), '../database/history.db')
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = sqlite3.connect(db_path)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS readings (
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS readings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         ppm INTEGER,
         flame INTEGER,
@@ -20,6 +23,7 @@ def init_db():
     conn.commit()
     conn.close()
     print("Database initialized successfully at:", db_path)
+
 
 if __name__ == '__main__':
     init_db()
