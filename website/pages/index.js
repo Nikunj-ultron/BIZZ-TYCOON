@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { StatusIndicator } from '../components/StatusIndicator';
 import { Display } from '../components/Display';
 import { SevenSegment } from '../components/SevenSegment';
 import { HistoryGraph } from '../components/HistoryGraph';
 import { Controls } from '../components/Controls';
+import { Diagnostics } from '../components/Diagnostics';
 
 export default function Home() {
   const [data, setData] = useState({
@@ -18,6 +19,36 @@ export default function Home() {
   });
   const [history, setHistory] = useState([]);
   const [connected, setConnected] = useState(false);
+  const audioCtxRef = useRef(null);
+
+  // Web Audio API alarm sound generator
+  const playAlarmSound = () => {
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 note
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.2);
+
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
+    } catch (e) {
+      console.error('Audio playback error', e);
+    }
+  };
 
   useEffect(() => {
     const ws = new WebSocket('ws://localhost:8765');
@@ -31,6 +62,10 @@ export default function Home() {
         const json = JSON.parse(event.data);
         setData(json);
         setHistory(prev => [...prev.slice(-30), { timestamp: new Date().toLocaleTimeString(), ppm: json.ppm }]);
+
+        if (json.status === 'HAZARD' || json.ppm >= 500) {
+          playAlarmSound();
+        }
       } catch (e) {
         console.error('Parse error', e);
       }
@@ -38,6 +73,24 @@ export default function Home() {
 
     return () => ws.close();
   }, []);
+
+  const exportCSV = () => {
+    if (history.length === 0) {
+      alert('No history data to export yet.');
+      return;
+    }
+    const csvContent = "data:text/csv;charset=utf-8,"
+      + ["Timestamp,PPM"].join(",") + "\n"
+      + history.map(e => `${e.timestamp},${e.ppm}`).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "gastect_readings_history.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-8">
@@ -49,6 +102,12 @@ export default function Home() {
           <p className="text-slate-400 text-sm">IoT Gas Leak & Fire Detection System | Bizz Tycoons</p>
         </div>
         <div className="flex items-center space-x-6">
+          <button
+            onClick={exportCSV}
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-medium transition text-emerald-400 border border-slate-700"
+          >
+            Export CSV
+          </button>
           <Link href="/about" className="text-sm font-medium text-slate-300 hover:text-white transition">
             About Project
           </Link>
@@ -89,9 +148,13 @@ export default function Home() {
         </div>
         <div className="md:col-span-1">
           <Controls
-            onTestAlarm={() => alert('Test alarm triggered!')}
-            onReset={() => alert('System reset sent!')}
+            onTestAlarm={() => playAlarmSound()}
+            onReset={() => alert('System reset sent successfully!')}
           />
+        </div>
+
+        <div className="md:col-span-3">
+          <Diagnostics ldr={data.ldr} motion={data.motion} touch={data.touch} battery={data.battery} />
         </div>
       </main>
     </div>
